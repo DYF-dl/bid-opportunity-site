@@ -340,8 +340,9 @@ function saveData() {
 }
 
 /* ===== 云同步函数 ===== */
-function cloudRequest(path, options) {
+function cloudRequest(path, options, retries) {
   options = options || {};
+  retries = retries == null ? 3 : retries; // 默认重试3次
   return fetch(SUPABASE_URL + '/rest/v1/' + path, {
     method: options.method || 'GET',
     headers: Object.assign({
@@ -353,6 +354,16 @@ function cloudRequest(path, options) {
   }).then(function (res) {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return res;
+  }).catch(function (err) {
+    // 网络抖动时自动重试，每次间隔递增（1s, 2s, 3s）
+    if (retries > 0) {
+      return new Promise(function (resolve) {
+        setTimeout(resolve, (4 - retries) * 1000);
+      }).then(function () {
+        return cloudRequest(path, options, retries - 1);
+      });
+    }
+    throw err;
   });
 }
 
